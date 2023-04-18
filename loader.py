@@ -155,14 +155,14 @@ def decode_extract_and_batch(
             start = tf.random.uniform([], maxval=slice_len, dtype=tf.int32)
             audio = audio[start:]
 
-            # Extract slices
-            audio_slices = tf.signal.frame(
-                audio,
-                frame_length=slice_len,
-                frame_step=slice_hop,
-                pad_end=slice_pad_end,
-                pad_value=0
-            )
+        # Extract slices
+        audio_slices = tf.signal.frame(
+            audio,
+            frame_length=slice_len,
+            frame_step=slice_hop,
+            pad_end=slice_pad_end,
+            pad_value=0
+        )
 
         # Only use first slice if requested
         if slice_first_only:
