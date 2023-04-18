@@ -149,11 +149,8 @@ def train(args):
 
 
 if __name__ == '__main__':
-    import tensorflow as tf
     print(tf.__version__)
-
-    # Enable TensorFlow 1.x compatibility mode
-    tf.compat.v1.enable_eager_execution()
+    tf.disable_v2_behavior()
 
     import argparse
     from main import argument
