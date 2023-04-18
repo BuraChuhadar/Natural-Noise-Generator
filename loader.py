@@ -1,41 +1,22 @@
-from scipy.io.wavfile import read as wavread
 import numpy as np
-
 import tensorflow as tf
-
-import sys
-
+import librosa
 
 def decode_audio(fp, fs=None, num_channels=1, normalize=False, fast_wav=False):
     """Decodes audio file paths into 32-bit floating point vectors.
+    Args:
+        fp: Audio file path.
+        fs: If specified, resamples decoded audio to this rate.
+        mono: If true, averages channels to mono.
+        fast_wav: Assume fp is a standard WAV file (PCM 16-bit or float 32-bit).
+    Returns:
+        A np.float32 array containing the audio samples at specified sample rate.
+    """
 
-  Args:
-    fp: Audio file path.
-    fs: If specified, resamples decoded audio to this rate.
-    mono: If true, averages channels to mono.
-    fast_wav: Assume fp is a standard WAV file (PCM 16-bit or float 32-bit).
-
-  Returns:
-    A np.float32 array containing the audio samples at specified sample rate.
-  """
-    if fast_wav:
-        # Read with scipy wavread (fast).
-        _fs, _wav = wavread(fp)
-        if fs is not None and fs != _fs:
-            raise NotImplementedError('Scipy cannot resample audio.')
-        if _wav.dtype == np.int16:
-            _wav = _wav.astype(np.float32)
-            _wav /= 32768.
-        elif _wav.dtype == np.float32:
-            _wav = np.copy(_wav)
-        else:
-            raise NotImplementedError('Scipy cannot process atypical WAV files.')
-    else:
-        # Decode with librosa load (slow but supports file formats like mp3).
-        import librosa
-        _wav, _fs = librosa.core.load(fp, sr=fs, mono=False)
-        if _wav.ndim == 2:
-            _wav = np.swapaxes(_wav, 0, 1)
+    # Decode with librosa load
+    _wav, _fs = librosa.core.load(fp, sr=fs, mono=False)
+    if _wav.ndim == 2:
+        _wav = np.swapaxes(_wav, 0, 1)
 
     assert _wav.dtype == np.float32
 
