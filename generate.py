@@ -6,17 +6,17 @@ import glob
 
 def generate(args):
     if args.wav_out_time is None:
-        out_length=float('inf')
+        out_length = float('inf')
     else:
-        out_length=args.wav_out_time * args.data_sample_rate
+        out_length = args.wav_out_time * args.data_sample_rate
 
     infer_dir = os.path.join(args.train_dir, 'infer')
     infer_metagraph_fp = os.path.join(infer_dir, 'infer.meta')
-    tf.reset_default_graph()
-    saver = tf.train.import_meta_graph(infer_metagraph_fp)
-    graph = tf.get_default_graph()
+    tf.compat.v1.reset_default_graph()
+    saver = tf.compat.v1.train.import_meta_graph(infer_metagraph_fp)
+    graph = tf.compat.v1.get_default_graph()
 
-    with tf.Session() as sess:
+    with tf.compat.v1.Session() as sess:
 
         from librosa.output import write_wav as wav_w
         from librosa.core import load as wav_r
@@ -32,39 +32,39 @@ def generate(args):
         y = graph.get_tensor_by_name('y:0')
         G_z = graph.get_tensor_by_name('G_z:0')[:, :, 0]
 
-
-        #write tflite
-        input_arrays = [z,y]
+        # write tflite
+        input_arrays = [z, y]
         output_arrays = [G_z]
-        converter = tf.contrib.lite.TFLiteConverter.from_session(sess, input_arrays, output_arrays)
+        converter = tf.lite.TFLiteConverter.from_saved_model(infer_dir)
+        converter.optimizations = [tf.lite.Optimize.DEFAULT]
         tflite_model = converter.convert()
         open("NNG.tflite", "wb").write(tflite_model)
 
         # Loop_Init
         print("Generating Initialized!")
         fp = glob.glob(os.path.join(args.data_dir, '*'))[0]
-        _y = wav_r(fp,sr=args.data_sample_rate,duration=1)[0]
-        _y = np.reshape(_y[:args.wavegan_smooth_len],(1,-1,1))
+        _y = wav_r(fp, sr=args.data_sample_rate, duration=1)[0]
+        _y = np.reshape(_y[:args.wavegan_smooth_len], (1, -1, 1))
 
-        wv = np.zeros([1,1])
+        wv = np.zeros([1, 1])
         gen_count = 3
 
         # Loop
         try:
-            while wv.shape[1]<out_length:
+            while wv.shape[1] < out_length:
                 _z = (np.random.rand(1, 100) * 2.) - 1.
-                wv = np.concatenate((wv,sess.run(G_z, {y: _y, z: _z})), axis = 1)
-                _y = np.reshape(wv[:,-1-args.wavegan_smooth_len:-1], (1,-1,1))
-                gen_count = gen_count+1
+                wv = np.concatenate((wv, sess.run(G_z, {y: _y, z: _z})), axis=1)
+                _y = np.reshape(wv[:, -1 - args.wavegan_smooth_len:-1], (1, -1, 1))
+                gen_count = gen_count + 1
 
-                if gen_count==4:
+                if gen_count == 4:
                     wav_w(args.wav_out_path, wv[0, :], args.data_sample_rate)
-                    gen_count=0
-            wav_w(args.wav_out_path, wv[0, 0:out_length-1], args.data_sample_rate)
+                    gen_count = 0
+            wav_w(args.wav_out_path, wv[0, 0:out_length - 1], args.data_sample_rate)
             print("Generating Finished!")
 
         except KeyboardInterrupt:
-            wav_w(args.wav_out_path, wv[0, 0:min(wv.shape[1],out_length-1)], args.data_sample_rate)
+            wav_w(args.wav_out_path, wv[0, 0:min(wv.shape[1], out_length - 1)], args.data_sample_rate)
             print("KeyboardInterrupt Called!")
 
 

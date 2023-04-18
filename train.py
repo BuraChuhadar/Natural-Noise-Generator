@@ -18,7 +18,7 @@ def train(args):
        raise Exception('Did not find any audio files in specified directory')
     print('Found {} audio files in specified directory'.format(len(fps)))
 
-    with tf.name_scope('loader'):
+    with tf.compat.v1.name_scope('loader'):
         x = loader.decode_extract_and_batch(fps,
                                           batch_size=args.train_batch_size,
                                           slice_len=32768,
@@ -38,10 +38,10 @@ def train(args):
         x = x[:, :, 0]
 
     # Make z vector
-    z = tf.random_uniform([args.train_batch_size, args.wavegan_latent_dim], -1., 1., dtype=tf.float32)
+    z = tf.random.uniform([args.train_batch_size, args.wavegan_latent_dim], -1., 1., dtype=tf.float32)
 
     # Make generator
-    with tf.variable_scope('G'):
+    with tf.compat.v1.variable_scope('G'):
         # use first 512 point from real data as y
         y = tf.slice(x, [0, 0, 0], [-1, args.wavegan_smooth_len, -1])
         G_z = WaveGANGenerator(y, z,
@@ -50,7 +50,7 @@ def train(args):
                                args.wavegan_dim,
                                args.wavegan_batchnorm,
                                train=True)
-    G_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='G')
+    G_vars = tf.compat.v1.get_collection(tf.compat.v1.GraphKeys.TRAINABLE_VARIABLES, scope='G')
     # Print G summary
     print('-' * 80)
     print('Generator vars')
@@ -63,13 +63,13 @@ def train(args):
     print('Total params: {} ({:.2f} MB)'.format(nparams, (float(nparams) * 4) / (1024 * 1024)))
 
     # Make real discriminator
-    with tf.name_scope('D_x'), tf.variable_scope('D'):
+    with tf.compat.v1.name_scope('D_x'), tf.compat.v1.variable_scope('D'):
         D_x = WaveGANDiscriminator(x,
                                    args.wavegan_kernel_len,
                                    args.wavegan_dim,
                                    args.wavegan_batchnorm,
                                    args.wavegan_disc_phaseshuffle)
-    D_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='D')
+    D_vars = tf.compat.v1.get_collection(tf.compat.v1.GraphKeys.TRAINABLE_VARIABLES, scope='D')
 
     # Print D summary
     print('-' * 80)
@@ -84,7 +84,7 @@ def train(args):
     print('-' * 80)
 
     # Make fake discriminator
-    with tf.name_scope('D_G_z'), tf.variable_scope('D', reuse=True):
+    with tf.compat.v1.name_scope('D_G_z'), tf.compat.v1.variable_scope('D', reuse=True):
         yG_z = tf.concat([y, G_z], 1)
         # print("yG_z shape:")
         # print(yG_z.get_shape())
@@ -98,10 +98,10 @@ def train(args):
     G_loss = -tf.reduce_mean(D_G_z)
     D_loss = tf.reduce_mean(D_G_z) - tf.reduce_mean(D_x)
 
-    alpha = tf.random_uniform(shape=[args.train_batch_size, 1, 1], minval=0., maxval=1.)
+    alpha = tf.random.uniform(shape=[args.train_batch_size, 1, 1], minval=0., maxval=1.)
     differences = yG_z - x
     interpolates = x + (alpha * differences)
-    with tf.name_scope('D_interp'), tf.variable_scope('D', reuse=True):
+    with tf.compat.v1.name_scope('D_interp'), tf.compat.v1.variable_scope('D', reuse=True):
         D_interp = WaveGANDiscriminator(interpolates,
                                         args.wavegan_kernel_len,
                                         args.wavegan_dim,
@@ -109,28 +109,28 @@ def train(args):
                                         args.wavegan_disc_phaseshuffle)
     LAMBDA = 10
     gradients = tf.gradients(D_interp, [interpolates])[0]
-    slopes = tf.sqrt(tf.reduce_sum(tf.square(gradients), reduction_indices=[1, 2]))
+    slopes = tf.sqrt(tf.reduce_sum(tf.square(gradients), axis=[1, 2]))
     gradient_penalty = tf.reduce_mean((slopes - 1.) ** 2.)
     D_loss += LAMBDA * gradient_penalty
 
     # Create (recommended) optimizer
-    G_opt = tf.train.AdamOptimizer(learning_rate=1e-4, beta1=0.5, beta2=0.9)
-    D_opt = tf.train.AdamOptimizer(learning_rate=1e-4, beta1=0.5, beta2=0.9)
+    G_opt = tf.compat.v1.train.AdamOptimizer(learning_rate=1e-4, beta1=0.5, beta2=0.9)
+    D_opt = tf.compat.v1.train.AdamOptimizer(learning_rate=1e-4, beta1=0.5, beta2=0.9)
 
     # Create training ops
-    G_train_op = G_opt.minimize(G_loss, var_list=G_vars, global_step=tf.train.get_or_create_global_step())
+    G_train_op = G_opt.minimize(G_loss, var_list=G_vars, global_step=tf.compat.v1.train.get_or_create_global_step())
     D_train_op = D_opt.minimize(D_loss, var_list=D_vars)
 
     # Summarize
-    tf.summary.audio('x', x, args.data_sample_rate)
-    tf.summary.audio('G_z', G_z, args.data_sample_rate)
-    tf.summary.audio('yG_z', yG_z, args.data_sample_rate)
+    tf.compat.v1.summary.audio('x', x, args.data_sample_rate)
+    tf.compat.v1.summary.audio('G_z', G_z, args.data_sample_rate)
+    tf.compat.v1.summary.audio('yG_z', yG_z, args.data_sample_rate)
 
-    tf.summary.scalar('G_loss', G_loss)
-    tf.summary.scalar('D_loss', D_loss)
+    tf.compat.v1.summary.scalar('G_loss', G_loss)
+    tf.compat.v1.summary.scalar('D_loss', D_loss)
 
     # Run training
-    with tf.train.MonitoredTrainingSession(checkpoint_dir=args.train_dir,
+    with tf.compat.v1.train.MonitoredTrainingSession(checkpoint_dir=args.train_dir,
                                          save_checkpoint_secs=args.train_save_secs,
                                          save_summaries_secs=args.train_summary_secs) as sess:
         while True:
@@ -149,6 +149,9 @@ def train(args):
 
 
 if __name__ == '__main__':
+    print(tf.__version__)
+    tf.compat.v1.disable_v2_behavior()
+
     import argparse
     from main import argument
 
